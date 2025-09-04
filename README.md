@@ -9,13 +9,13 @@ We recommend running the SURFR pipeline on a computational cluster with a job sc
 The following software is required:  
 - [Samtools](http://www.htslib.org/)  
 - [pigz](https://zlib.net/pigz/)  
-- [miRTrace](https://github.com/mirtrace/mirtrace](https://github.com/friedlanderlab/mirtrace)  
+- [miRTrace](https://github.com/friedlanderlab/mirtrace/)  
 - [KMC](https://github.com/refresh-bio/KMC)  
 - [R](https://www.r-project.org/)  
 
 ## Pipeline Overview
 
-<img width="469" height="1125" alt="SURFR pipeline schematic" src="https://github.com/user-attachments/assets/d2706f55-0a40-4750-92d8-daf084176b24" />
+<img width="230" height="600" alt="SURFR pipeline schematic" src="https://github.com/user-attachments/assets/d2706f55-0a40-4750-92d8-daf084176b24" />
 
 ---
 
