@@ -1,6 +1,6 @@
 # Sequence-based Unbiased Reference-Free small-RNA sequencing (SURFR) pipeline
 
-This repository provides scripts for running the **SURFR pipeline**, including tools to identify cancer-specific small RNAs as described in *Kalogeropoulos et al., 2015 (preprint)*.  
+This repository provides scripts for running the **SURFR pipeline**, including tools to identify cancer-specific small RNAs as described in *Kalogeropoulos et al., 2025 (preprint)*.  
 
 ## Software Requirements
 
