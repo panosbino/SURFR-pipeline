@@ -4,7 +4,7 @@ This repository provides scripts for running the **SURFR pipeline**, including t
 
 ## Software Requirements
 
-We recommend running the SURFR pipeline on a computational cluster with a job scheduling system such as **SLURM**.  
+We recommend running the SURFR pipeline on a computational cluster with a job scheduling system such as **SLURM** for analysis of very large datasets such us the ones used in the *Kalogeropoulos et al., 2025 (preprint)* manuscript. For smaller datasets the pipeline can be also run locally.   
 
 The following software is required:  
 - [Samtools](http://www.htslib.org/)  
@@ -21,9 +21,9 @@ The following software is required:
 
 ### 1. `MergeAndConvertBAMs.sh`
 
-- Uses **Samtools** to merge BAM files for each condition downloaded from the Genomic Data Commons (GDC).  
+- Uses **Samtools** to merge BAM files for each condition downloaded from the Genomic Data Commons (GDC).
 - Merged files are converted to FASTQ format and compressed with **pigz**.  
-- ⚠️ If your input files are already in FASTQ format, the conversion step can be skipped.  
+- If your input files are already in FASTQ format, the conversion step can be skipped.  
 
 ---
 
