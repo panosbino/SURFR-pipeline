@@ -1,61 +1,128 @@
-#!/bin/sh
-
+#!/bin/bash
 #SBATCH -A naiss2024-22-713
 #SBATCH -p memory
 #SBATCH -c 30
 #SBATCH -t 20:00:00
-#SBATCH -J mirtrace
+#SBATCH -J QCandFasta
 #SBATCH --begin=now
 #SBATCH --mail-type=ALL
 
-# This script runs miRTrace quality control on cancer and healthy datasets,
-# then compresses the resulting FASTA files.
+# =============================================================================
+# SURFR Pipeline - Step 2: QCandFasta.sh
+#
+# Runs miRTrace quality control on cancer and adjacent-normal FASTQ files,
+# then compresses the resulting uncollapsed FASTA outputs for use in Step 3.
+#
+# Usage (direct):
+#   bash QCandFasta.sh <project_id> <dataset> <projPath> <mirtrace_path>
+#
+# Usage (SLURM):
+#   sbatch QCandFasta.sh <project_id> <dataset> <projPath> <mirtrace_path>
+#
+# Arguments:
+#   project_id    - Project identifier, e.g. LUAD
+#   dataset       - Dataset name, e.g. TCGA
+#   projPath      - Absolute path to the project root directory
+#   mirtrace_path - Full path to the miRTrace executable
+#
+# Inputs (from Step 1):
+#   <outdir>/all_<project_id>_cancer.fastq.gz
+#   <outdir>/all_<project_id>_adjacent.fastq.gz
+#
+# Outputs:
+#   <outdir>/all_<project_id>_cancer_miRTrace/qc_passed_reads.all.uncollapsed/all_<project_id>_cancer.fasta.gz
+#   <outdir>/all_<project_id>_adjacent_miRTrace/qc_passed_reads.all.uncollapsed/all_<project_id>_adjacent.fasta.gz
+# =============================================================================
+
+set -euo pipefail
 
 # ----------------------------
 # INPUT ARGUMENTS
 # ----------------------------
-project_id=$1   # Project identifier (passed as first argument) e.g LUAD
-dataset=$2      # Dataset name (passed as second argument) e.g TCGA
-projPath=$3     # Path to the project directory (passed as third argument)
+if [ "$#" -ne 4 ]; then
+    echo "ERROR: Expected 4 arguments, got $#"
+    echo "Usage: $0 <project_id> <dataset> <projPath> <mirtrace_path>"
+    exit 1
+fi
 
-# Define the base output directory for all results
+project_id=$1       # e.g. LUAD
+dataset=$2          # e.g. TCGA
+projPath=$3         # e.g. /proj/myproject
+mirtrace_path=$4    # e.g. /path/to/mirtrace
+
+# ----------------------------
+# PATHS
+# ----------------------------
 outdir=${projPath}/Data/${project_id}/${dataset}
 
-# ----------------------------
-# RUN miRTrace QC (CANCER)
-# ----------------------------
-# Run miRTrace quality control on the cancer FASTQ file
-#   --species hsa : assumes human (hsa) reads
-#   --output-dir : directory to store QC results
-#   --write-fasta : outputs passed reads in FASTA format
-#   --uncollapse-fasta : keeps duplicate reads uncollapsed
-#   --num-threads 30 : use 30 threads for faster execution
-#   --force : overwrite existing results if present
-/path/to/mirtrace qc \
-    --species hsa \
-    ${outdir}/all_${project_id}_cancer.fastq.gz \
-    --output-dir ${outdir}/all_${project_id}_cancer_miRTrace \
-    --write-fasta \
-    --uncollapse-fasta \
-    --num-threads 30 \
-    --force
+# Validate miRTrace executable
+if [ ! -x "${mirtrace_path}" ]; then
+    echo "ERROR: miRTrace executable not found or not executable: ${mirtrace_path}"
+    exit 1
+fi
+
+# Validate input FASTQ files from Step 1
+for condition in cancer adjacent; do
+    fastq="${outdir}/all_${project_id}_${condition}.fastq.gz"
+    if [ ! -f "${fastq}" ]; then
+        echo "ERROR: Input FASTQ not found (did Step 1 complete?): ${fastq}"
+        exit 1
+    fi
+done
 
 # ----------------------------
-# RUN miRTrace QC (HEALTHY)
+# LOAD MODULES
 # ----------------------------
-/path/to/mirtrace qc \
+ml PDC
+ml pigz
+
+# ----------------------------
+# miRTrace QC — CANCER
+# ----------------------------
+echo "[$(date)] Running miRTrace QC on cancer samples..."
+
+# FIX: input file must come AFTER all flags in miRTrace syntax
+"${mirtrace_path}" qc \
     --species hsa \
-    ${outdir}/all_${project_id}_healthy.fastq.gz \
-    --output-dir ${outdir}/all_${project_id}_healthy_miRTrace \
+    --output-dir "${outdir}/all_${project_id}_cancer_miRTrace" \
     --write-fasta \
     --uncollapse-fasta \
     --num-threads 30 \
-    --force
+    --force \
+    "${outdir}/all_${project_id}_cancer.fastq.gz"
+
+# ----------------------------
+# miRTrace QC — ADJACENT-NORMAL
+# ----------------------------
+echo "[$(date)] Running miRTrace QC on adjacent-normal samples..."
+
+"${mirtrace_path}" qc \
+    --species hsa \
+    --output-dir "${outdir}/all_${project_id}_adjacent_miRTrace" \
+    --write-fasta \
+    --uncollapse-fasta \
+    --num-threads 30 \
+    --force \
+    "${outdir}/all_${project_id}_adjacent.fastq.gz"
 
 # ----------------------------
 # COMPRESS OUTPUT FASTA FILES
 # ----------------------------
-# Compress the uncollapsed FASTA files from miRTrace QC using pigz
-#   --processes 30 : parallel compression with 30 threads
-pigz --processes 30 ${outdir}/all_${project_id}_cancer_miRTrace/qc_passed_reads.all.uncollapsed/all_${project_id}_cancer.fasta
-pigz --processes 30 ${outdir}/all_${project_id}_healthy_miRTrace/qc_passed_reads.all.uncollapsed/all_${project_id}_healthy.fasta
+echo "[$(date)] Compressing output FASTA files..."
+
+cancer_fasta="${outdir}/all_${project_id}_cancer_miRTrace/qc_passed_reads.all.uncollapsed/all_${project_id}_cancer.fasta"
+adjacent_fasta="${outdir}/all_${project_id}_adjacent_miRTrace/qc_passed_reads.all.uncollapsed/all_${project_id}_adjacent.fasta"
+
+if [ ! -f "${cancer_fasta}" ]; then
+    echo "ERROR: Expected cancer FASTA not produced by miRTrace: ${cancer_fasta}"
+    exit 1
+fi
+if [ ! -f "${adjacent_fasta}" ]; then
+    echo "ERROR: Expected adjacent-normal FASTA not produced by miRTrace: ${adjacent_fasta}"
+    exit 1
+fi
+
+pigz --processes 30 "${cancer_fasta}"
+pigz --processes 30 "${adjacent_fasta}"
+
+echo "[$(date)] Step 2 (QCandFasta) complete."
