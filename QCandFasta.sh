@@ -71,10 +71,15 @@ for condition in cancer adjacent; do
 done
 
 # ----------------------------
-# LOAD MODULES
+# LOAD MODULES (only when running directly on the cluster, outside the container)
+# Inside the SURFR container all tools are already on PATH and the host module
+# system is not available, so module loading is skipped there.
+# (PDC module is system-specific; adjust for your cluster environment)
 # ----------------------------
-ml PDC
-ml pigz
+if [ -z "${SINGULARITY_CONTAINER:-}${APPTAINER_CONTAINER:-}" ] && command -v ml >/dev/null 2>&1; then
+    ml PDC
+    ml pigz
+fi
 
 # ----------------------------
 # miRTrace QC — CANCER
@@ -122,7 +127,7 @@ if [ ! -f "${adjacent_fasta}" ]; then
     exit 1
 fi
 
-pigz --processes 30 "${cancer_fasta}"
-pigz --processes 30 "${adjacent_fasta}"
+pigz --force --processes 30 "${cancer_fasta}"
+pigz --force --processes 30 "${adjacent_fasta}"
 
 echo "[$(date)] Step 2 (QCandFasta) complete."

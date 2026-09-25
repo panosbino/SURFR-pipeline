@@ -8,7 +8,7 @@
 # =============================================================================
 
 expected_r <- "4.4.1"
-pkgs <- c("tidyverse", "paletteer", "arrow", "ggvenn", "MASS")
+pkgs <- c("tidyverse", "paletteer", "arrow", "ggvenn", "ggrastr", "MASS")
 
 # --- Guard: correct R version -------------------------------------------------
 if (getRversion() != expected_r) {

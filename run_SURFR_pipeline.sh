@@ -8,7 +8,7 @@
 #   Step 1: MergeAndConvertBAMs.sh  — Merge BAMs, convert to FASTQ
 #   Step 2: QCandFasta.sh           — miRTrace QC, produce FASTA
 #   Step 3: countKmers.sh           — KMC k-mer counting and merging
-#   Step 4: FindCancerSpecificRNAs.R — Identify cancer-specific sequences
+#   Step 4: FindCancerSpecificRNAs.r — Identify cancer-specific sequences
 #
 # SLURM NOTE:
 #   Each step submits its own sbatch job and chains to the next via dependencies.
@@ -89,7 +89,7 @@ run_sbatch() {
 }
 
 # --- Validate script paths ---------------------------------------------------
-for script in MergeAndConvertBAMs.sh QCandFasta.sh countKmers.sh FindCancerSpecificRNAs.R; do
+for script in MergeAndConvertBAMs.sh QCandFasta.sh countKmers.sh FindCancerSpecificRNAs.r; do
   if [ ! -f "${SCRIPT_DIR}/${script}" ]; then
     echo "ERROR: Pipeline script not found: ${SCRIPT_DIR}/${script}"
     exit 1
@@ -223,7 +223,7 @@ for dataset in ${DATASETS}; do
 done
 
 # Append the actual R execution script pipeline invocation 
-wrap_cmd="${wrap_cmd} && ml PDC singularity && ${SING_EXEC} ${RSCRIPT_PATH} ${SCRIPT_DIR}/FindCancerSpecificRNAs.R \
+wrap_cmd="${wrap_cmd} && ml PDC singularity && ${SING_EXEC} ${RSCRIPT_PATH} ${SCRIPT_DIR}/FindCancerSpecificRNAs.r \
   ${PROJECT_ID} \
   ${MERGED_TABLES_DIR} \
   ${SRA_KMER_TABLE} \

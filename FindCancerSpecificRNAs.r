@@ -1,5 +1,5 @@
 # =============================================================================
-# SURFR Pipeline - Step 4: FindCancerSpecificRNAs.R
+# SURFR Pipeline - Step 4: FindCancerSpecificRNAs.r
 #
 # Identifies cancer-specific k-mers by:
 #   1. Loading merged k-mer count tables from TCGA and CPTAC (Step 3 outputs)
@@ -9,9 +9,11 @@
 #   4. Loading SRA (non-cancer control) k-mer counts and removing any
 #      intersected k-mer with SRA counts >= 200
 #   5. Saving filtered results and merging overlapping k-mers with dekupl-mergeTags
+#      (stranded merging, minimum overlap 15 nt = mergeTags defaults; these
+#       settings reproduce the published LUAD sequences, see tests/)
 #
 # Usage (Rscript):
-#   Rscript FindCancerSpecificRNAs.R \
+#   Rscript FindCancerSpecificRNAs.r \
 #     <project_id> \
 #     <merged_tables_dir> \
 #     <sra_kmer_table> \
@@ -25,7 +27,8 @@
 #                          (expects files named all_<project>_TCGA_17mers_merged.txt
 #                           and all_<project>_CPTAC_17mers_merged.txt)
 #   sra_kmer_table       - Path to the SRA non-cancer k-mer count table
-#                          (tab-delimited, columns: kmer, sra_count)
+#                          (no header; two whitespace-separated columns
+#                           (space or tab): kmer, sra_count)
 #   metadata_dir         - Directory containing TCGA and CPTAC metadata files
 #   output_dir           - Directory for all output files and plots
 #   dekupl_mergetags_path - Full path to the dekupl-mergeTags executable
@@ -38,6 +41,7 @@ library(tidyverse)   # data wrangling, ggplot2, dplyr, etc.
 library(paletteer)   # additional color palettes
 library(arrow)       # write_feather output format
 library(ggvenn)      # Venn diagrams
+library(ggrastr)     # rasterised scatter layers (as in the original analysis)
 
 # ----------------------------
 # PARSE COMMAND-LINE ARGUMENTS
@@ -47,7 +51,7 @@ args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 6) {
   stop(paste(
     "ERROR: Expected 6 arguments.",
-    "Usage: Rscript FindCancerSpecificRNAs.R",
+    "Usage: Rscript FindCancerSpecificRNAs.r",
     "  <project_id> <merged_tables_dir> <sra_kmer_table>",
     "  <metadata_dir> <output_dir> <dekupl_mergetags_path>"
   ))
@@ -104,7 +108,9 @@ metadata_CPTAC <- read.delim(
   sep = " "
 )
 
-# Compute sample ratios (cancer / adjacent-normal) for reference
+# Compute sample ratios (cancer / adjacent-normal) for reference only.
+# NOTE: these ratios are informational and are NOT used in any filter;
+# enrichment below is the ratio of raw pooled counts, as in the preprint analysis.
 sample_ratio_CPTAC <- metadata_CPTAC |> pull(Sample_Type) |> table()
 sample_ratio_CPTAC <- sample_ratio_CPTAC[1] / sample_ratio_CPTAC[2]
 
@@ -188,8 +194,11 @@ if (!file.exists(sra_kmer_table_path)) {
   stop(paste("SRA k-mer table not found:", sra_kmer_table_path))
 }
 
-sra_df <- read.delim(sra_kmer_table_path, header = FALSE)
-colnames(sra_df) <- c("kmers", "sums_SRA")
+# read.table splits on any whitespace, so both space- and tab-separated
+# files are accepted (the original LUAD table is space-separated).
+sra_df <- read.table(sra_kmer_table_path, header = FALSE,
+                     col.names  = c("kmers", "sums_SRA"),
+                     colClasses = c("character", "numeric"))
 
 # Join SRA counts onto intersected k-mers; absent k-mers get count 0
 intersected_df <- intersected_df |>
@@ -291,12 +300,12 @@ df_TCGA$density_TCGA <- get_density(
 )
 
 p_all_tcga_filt <- ggplot() +
-  geom_point(data    = df_TCGA,
+  geom_point_rast(data    = df_TCGA,
              mapping = aes(x     = log10(sums_TCGA_Healthy_KMC + 1),
                            y     = log10(sums_TCGA_Cancer_KMC + 1),
                            fill  = log10(density_TCGA)),
              size = 2, shape = 21, stroke = NA) +
-  geom_point(data    = tcga_filter,
+  geom_point_rast(data    = tcga_filter,
              mapping = aes(x = log10(sums_TCGA_Healthy_KMC + 1),
                            y = log10(sums_TCGA_Cancer_KMC + 1)),
              size = 2, shape = 21, fill = "#febf38", stroke = NA) +
@@ -336,12 +345,12 @@ df_CPTAC$density_CPTAC <- get_density(
 )
 
 p_all_CPTAC_filt <- ggplot() +
-  geom_point(data    = df_CPTAC,
+  geom_point_rast(data    = df_CPTAC,
              mapping = aes(x    = log10(sums_CPTAC_Healthy_KMC + 1),
                            y    = log10(sums_CPTAC_Cancer_KMC + 1),
                            fill = log10(density_CPTAC)),
              size = 2, shape = 21, stroke = NA) +
-  geom_point(data    = cptac_filter,
+  geom_point_rast(data    = cptac_filter,
              mapping = aes(x = log10(sums_CPTAC_Healthy_KMC + 1),
                            y = log10(sums_CPTAC_Cancer_KMC + 1)),
              size = 2, shape = 21, fill = "#febf38", stroke = NA) +
@@ -493,6 +502,17 @@ ggsave(plot     = violin_counts,
 # ----------------------------
 cat(sprintf("[%s] Saving filtered results...\n", Sys.time()))
 
+# dekupl-mergeTags reads the first data column (after the k-mer) as a p-value
+# and represents each merged contig by the k-mer with the LOWEST value in it.
+# Putting the non-cancer (SRA) count in that column reproduces the published
+# representative k-mers (Supplementary Table 2): each sequence is represented by
+# the k-mer least expressed in non-cancer samples.
+# mergeTags also reads the 4th data column as a log2 fold change and assembles
+# positive and non-positive values separately; with this column order it is
+# enrichment_TCGA (> 40 for every k-mer here), so all k-mers are assembled together.
+cancer_specific_df <- cancer_specific_df |>
+  dplyr::relocate(kmers, sums_SRA)
+
 arrow::write_feather(
   cancer_specific_df,
   sink = file.path(analysis_dir,
@@ -524,8 +544,18 @@ input_tsv  <- file.path(analysis_dir,
 output_tsv <- file.path(analysis_dir,
                         sprintf("cancer_enriched_filtered_sequences_%s.tsv", project))
 
-system(sprintf("%s -k %d -m 8 -n %s > %s",
-               dekupl_path, kmer_length, input_tsv, output_tsv))
+# Stranded merging (no -n) with a minimum overlap of 15 nt (the mergeTags
+# defaults). With the published LUAD k-mers these settings reproduce exactly
+# the 73 published sequences and their representative k-mers
+# (tests/test_step4_LUAD_published.R).
+mergetags_min_overlap <- 15
+mergetags_status <- system(sprintf("%s -k %d -m %d %s > %s",
+                                   shQuote(dekupl_path), kmer_length,
+                                   mergetags_min_overlap,
+                                   shQuote(input_tsv), shQuote(output_tsv)))
+if (mergetags_status != 0) {
+  stop(sprintf("dekupl-mergeTags failed with exit status %d", mergetags_status))
+}
 
 # Load merged candidate sequences
 cancer_specific_sequences <- read.delim(output_tsv)

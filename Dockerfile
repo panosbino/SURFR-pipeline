@@ -10,11 +10,11 @@
 #   KMC             3.2.4
 #   miRTrace        1.0.1  (Java 21 runtime)
 #   R               4.4.1  (rocker/r-ver:4.4.1, matches the preprint)
-#   R packages      tidyverse, paletteer, arrow, ggvenn, MASS, installed from
+#   R packages      tidyverse, paletteer, arrow, ggvenn, ggrastr, MASS, installed from
 #                   the Posit Package Manager CRAN snapshot of 2024-10-30
 #                   (last day R 4.4.1 was the current release). Exact installed
 #                   versions are written to /opt/surfr/R_package_versions.tsv.
-#   dekupl-run      1.3.5  (mergeTags binary only)
+#   dekupl-mergeTags commit 4cdad2c (2017-06-27, last commit of the repository)
 #   pigz            system (Ubuntu 22.04 apt)
 # =============================================================================
 
@@ -31,7 +31,7 @@ LABEL version="1.0.0"
 LABEL samtools="1.23.1"
 LABEL KMC="3.2.4"
 LABEL miRTrace="1.0.1"
-LABEL dekupl-run="1.3.5"
+LABEL dekupl-mergeTags="4cdad2c5ce45c3a30458aa73ce970e31c7646699"
 LABEL R="4.4.1"
 LABEL cran_snapshot="2024-10-30"
 
@@ -90,6 +90,8 @@ RUN apt-get update -qq && \
         libuv1-dev \
         libwebp-dev \
         libxml2-dev \
+        libcairo2-dev \
+        libxt-dev \
         pkg-config && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -167,14 +169,16 @@ RUN Rscript /tmp/install_r_packages.R && \
 
 # Enforced R check, kept in its own RUN so the '|| true' chain below
 # cannot swallow a failure.
-RUN Rscript -e "stopifnot(getRversion() == '4.4.1'); for (p in c('tidyverse','paletteer','arrow','ggvenn','MASS')) { suppressPackageStartupMessages(library(p, character.only = TRUE)); cat(p, as.character(packageVersion(p)), 'OK\n') }"
+RUN Rscript -e "stopifnot(getRversion() == '4.4.1'); for (p in c('tidyverse','paletteer','arrow','ggvenn','ggrastr','MASS')) { suppressPackageStartupMessages(library(p, character.only = TRUE)); cat(p, as.character(packageVersion(p)), 'OK\n') }"
 
 # ---------------------------------------------------------------------------
-# 8. dekupl-mergeTags 1.3.5 — build from source
+# 8. dekupl-mergeTags — built from source, pinned to a fixed commit
 # ---------------------------------------------------------------------------
-RUN mkdir -p /opt/dekupl/bin && \
-    git clone --depth 1 https://github.com/Transipedia/dekupl-mergeTags.git /tmp/dekupl-mergeTags && \
+RUN MERGETAGS_COMMIT=4cdad2c5ce45c3a30458aa73ce970e31c7646699 && \
+    mkdir -p /opt/dekupl/bin && \
+    git clone https://github.com/Transipedia/dekupl-mergeTags.git /tmp/dekupl-mergeTags && \
     cd /tmp/dekupl-mergeTags && \
+    git checkout --quiet "${MERGETAGS_COMMIT}" && \
     make && \
     mv mergeTags /opt/dekupl/bin/mergeTags && \
     chmod +x /opt/dekupl/bin/mergeTags && \
@@ -191,7 +195,7 @@ RUN echo "=== Smoke tests ===" && \
     java -version 2>&1 && \
     java -jar /opt/mirtrace/mirtrace.jar --version 2>&1 | head -1 && \
     Rscript --version && \
-    /opt/dekupl/bin/mergeTags --help 2>&1 | head -3 || true && \
+    /opt/dekupl/bin/mergeTags 2>&1 | head -3 || true && \
     echo "=== All smoke tests passed ==="
 
 # ---------------------------------------------------------------------------
@@ -212,11 +216,11 @@ echo "  Rscript          /usr/local/bin/Rscript (R 4.4.1)"\n\
 echo "  dekupl-mergeTags /opt/dekupl/bin/mergeTags"\n\
 echo "  R package list   /opt/surfr/R_package_versions.tsv"\n\
 echo ""\n\
-echo "Convert to Singularity sandbox for Dardel:"\n\
-echo "  docker save surfr_pipeline:latest -o surfr_pipeline_docker.tar"\n\
-echo "  docker run --rm --privileged --platform linux/amd64 \\\\"\n\
-echo "    -v \$(pwd):/work quay.io/singularity/singularity:v4.2.0 \\\\"\n\
-echo "    build --sandbox /work/surfr_pipeline/ docker-archive:///work/surfr_pipeline_docker.tar"\n\
+echo "Convert to a Singularity image (SIF) for Dardel:"\n\
+echo "  docker save surfr_pipeline:latest -o surfr_pipeline_docker.tar   (on your machine)"\n\
+echo "  copy the .tar to the cluster, then on the cluster:"\n\
+echo "  singularity build surfr_pipeline.sif docker-archive://\$PWD/surfr_pipeline_docker.tar"\n\
+echo "  run with: SINGULARITY_TMPDIR=/tmp singularity exec -B /cfs/klemming surfr_pipeline.sif ..."\n\
 ' > /entrypoint.sh && chmod +x /entrypoint.sh
 
 CMD ["/bin/bash", "/entrypoint.sh"]

@@ -63,12 +63,16 @@ if [ ! -d "${outdir}" ]; then
 fi
 
 # ----------------------------
-# LOAD MODULES
+# LOAD MODULES (only when running directly on the cluster, outside the container)
+# Inside the SURFR container all tools are already on PATH and the host module
+# system is not available, so module loading is skipped there.
 # (PDC module is system-specific; adjust for your cluster environment)
 # ----------------------------
-ml PDC
-ml samtools
-ml pigz
+if [ -z "${SINGULARITY_CONTAINER:-}${APPTAINER_CONTAINER:-}" ] && command -v ml >/dev/null 2>&1; then
+    ml PDC
+    ml samtools
+    ml pigz
+fi
 
 # ----------------------------
 # PROCESSING CANCER SAMPLES
@@ -83,6 +87,7 @@ fi
 
 # Merge all cancer BAM files into one; --write-index creates .bai automatically
 samtools merge \
+    -f \
     --threads 30 \
     --write-index \
     -o "${outdir}/all_${project_id}_cancer.bam" \
@@ -95,7 +100,7 @@ samtools fastq \
     > "${outdir}/all_${project_id}_cancer.fastq"
 
 echo "[$(date)] Compressing cancer FASTQ..."
-pigz --processes 30 "${outdir}/all_${project_id}_cancer.fastq"
+pigz --force --processes 30 "${outdir}/all_${project_id}_cancer.fastq"
 
 # ----------------------------
 # PROCESSING ADJACENT-NORMAL SAMPLES
@@ -109,6 +114,7 @@ if [ ! -d "${adjacent_bam_dir}" ]; then
 fi
 
 samtools merge \
+    -f \
     --threads 30 \
     --write-index \
     -o "${outdir}/all_${project_id}_adjacent.bam" \
@@ -121,6 +127,6 @@ samtools fastq \
     > "${outdir}/all_${project_id}_adjacent.fastq"
 
 echo "[$(date)] Compressing adjacent-normal FASTQ..."
-pigz --processes 30 "${outdir}/all_${project_id}_adjacent.fastq"
+pigz --force --processes 30 "${outdir}/all_${project_id}_adjacent.fastq"
 
 echo "[$(date)] Step 1 (MergeAndConvertBAMs) complete."

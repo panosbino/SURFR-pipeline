@@ -2,3 +2,4 @@ build.log
 step4_test.log
 test_data/
 *.tar
+.DS_Store

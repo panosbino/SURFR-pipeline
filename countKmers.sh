@@ -92,7 +92,8 @@ echo "[$(date)] Counting cancer k-mers..."
 
 # -fa        : input is FASTA format
 # -t30       : use 30 threads
-# -b         : RAM-only mode (no temporary disk storage)
+# -b         : do NOT convert k-mers to canonical form (keeps counts strand-specific;
+#              required for stranded small-RNA-seq. RAM-only mode would be -r)
 # -ci30      : minimum k-mer occurrence cutoff (≥30 reads required)
 # -cs4294967296 : maximum k-mer count (large upper bound)
 # -k17       : k-mer length
