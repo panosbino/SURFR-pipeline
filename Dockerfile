@@ -5,15 +5,23 @@
 #   docker buildx build --platform linux/amd64 --tag surfr_pipeline:latest --load .
 #
 # Tool versions:
-#   samtools        1.23.1
+#   samtools        1.23.1 (preprint used 1.20; merge/fastq output unaffected,
+#                           see README "Notes on the preprint text")
 #   KMC             3.2.4
 #   miRTrace        1.0.1  (Java 21 runtime)
-#   R               4.4    + tidyverse, paletteer, arrow, ggvenn, MASS
+#   R               4.4.1  (rocker/r-ver:4.4.1, matches the preprint)
+#   R packages      tidyverse, paletteer, arrow, ggvenn, MASS, installed from
+#                   the Posit Package Manager CRAN snapshot of 2024-10-30
+#                   (last day R 4.4.1 was the current release). Exact installed
+#                   versions are written to /opt/surfr/R_package_versions.tsv.
 #   dekupl-run      1.3.5  (mergeTags binary only)
 #   pigz            system (Ubuntu 22.04 apt)
 # =============================================================================
 
-FROM --platform=linux/amd64 ubuntu:22.04
+# rocker/r-ver:4.4.1 is Ubuntu 22.04 (jammy) with R 4.4.1 built from source.
+# For full immutability, replace the tag with its digest, obtained with:
+#   docker buildx imagetools inspect rocker/r-ver:4.4.1
+FROM --platform=linux/amd64 rocker/r-ver:4.4.1
 
 # ---------------------------------------------------------------------------
 # Labels
@@ -24,16 +32,19 @@ LABEL samtools="1.23.1"
 LABEL KMC="3.2.4"
 LABEL miRTrace="1.0.1"
 LABEL dekupl-run="1.3.5"
-LABEL R="4.4"
+LABEL R="4.4.1"
+LABEL cran_snapshot="2024-10-30"
 
 # ---------------------------------------------------------------------------
 # Environment — set once, available in every subsequent RUN and at runtime
+# CRAN: pinned snapshot used by install_r_packages.R. Set explicitly here so
+#       the pin does not depend on what the base image happens to configure.
 # ---------------------------------------------------------------------------
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
     JAVA_TOOL_OPTIONS="-Djava.awt.headless=true" \
-    R_LIBS_SITE=/opt/R/library \
+    CRAN="https://p3m.dev/cran/__linux__/jammy/2024-10-30" \
     PATH=/opt/kmc/bin:/opt/mirtrace:/opt/dekupl/bin:/usr/local/bin:$PATH
 
 # ---------------------------------------------------------------------------
@@ -138,30 +149,25 @@ RUN mkdir -p /opt/mirtrace && \
     rm -rf /tmp/mirtrace*
 
 # ---------------------------------------------------------------------------
-# 6. R 4.4 — installed from CRAN apt repo (Posit/CRAN official)
+# 6. R 4.4.1 — provided by the rocker/r-ver:4.4.1 base image
+#    (R_HOME=/usr/local/lib/R, Rscript at /usr/local/bin/Rscript).
+#    Do NOT apt-install r-base here: it would pull the latest CRAN R.
 # ---------------------------------------------------------------------------
-RUN apt-get update -qq && \
-    apt-get install -y --no-install-recommends \
-        software-properties-common \
-        dirmngr \
-        apt-transport-https && \
-    wget -qO- https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc \
-        | gpg --dearmor -o /usr/share/keyrings/r-project.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/r-project.gpg] https://cloud.r-project.org/bin/linux/ubuntu jammy-cran40/" \
-        > /etc/apt/sources.list.d/r-project.list && \
-    apt-get update -qq && \
-    apt-get install -y --no-install-recommends r-base r-base-dev && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------------
-# 7. R packages — write install script to file to avoid shell-escaping issues
+# 7. R packages — installed from the pinned snapshot into rocker's default
+#    site library. Rscript is run WITHOUT --vanilla on purpose: --vanilla
+#    skips Rprofile.site/Renviron.site, where rocker configures the library
+#    path and the user agent needed for Package Manager binaries.
 # ---------------------------------------------------------------------------
-RUN mkdir -p /opt/R/library && \
-    echo 'R_LIBS_SITE=/opt/R/library' >> /etc/R/Renviron
+RUN mkdir -p /opt/surfr
 COPY install_r_packages.R /tmp/install_r_packages.R
-RUN Rscript --vanilla /tmp/install_r_packages.R && \
+RUN Rscript /tmp/install_r_packages.R && \
     rm /tmp/install_r_packages.R
+
+# Enforced R check, kept in its own RUN so the '|| true' chain below
+# cannot swallow a failure.
+RUN Rscript -e "stopifnot(getRversion() == '4.4.1'); for (p in c('tidyverse','paletteer','arrow','ggvenn','MASS')) { suppressPackageStartupMessages(library(p, character.only = TRUE)); cat(p, as.character(packageVersion(p)), 'OK\n') }"
 
 # ---------------------------------------------------------------------------
 # 8. dekupl-mergeTags 1.3.5 — build from source
@@ -185,7 +191,6 @@ RUN echo "=== Smoke tests ===" && \
     java -version 2>&1 && \
     java -jar /opt/mirtrace/mirtrace.jar --version 2>&1 | head -1 && \
     Rscript --version && \
-    Rscript --vanilla -e "for(p in c('tidyverse','paletteer','arrow','ggvenn','MASS')){library(p,character.only=TRUE,lib.loc='/opt/R/library');cat(p,'OK\n')}" && \
     /opt/dekupl/bin/mergeTags --help 2>&1 | head -3 || true && \
     echo "=== All smoke tests passed ==="
 
@@ -203,8 +208,9 @@ echo "  pigz             /usr/bin/pigz"\n\
 echo "  kmc              /opt/kmc/bin/kmc"\n\
 echo "  kmc_tools        /opt/kmc/bin/kmc_tools"\n\
 echo "  mirtrace         /opt/mirtrace/mirtrace"\n\
-echo "  Rscript          /usr/bin/Rscript"\n\
+echo "  Rscript          /usr/local/bin/Rscript (R 4.4.1)"\n\
 echo "  dekupl-mergeTags /opt/dekupl/bin/mergeTags"\n\
+echo "  R package list   /opt/surfr/R_package_versions.tsv"\n\
 echo ""\n\
 echo "Convert to Singularity sandbox for Dardel:"\n\
 echo "  docker save surfr_pipeline:latest -o surfr_pipeline_docker.tar"\n\
