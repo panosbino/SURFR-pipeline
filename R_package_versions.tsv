@@ -4,12 +4,14 @@ askpass	1.2.1	/usr/local/lib/R/site-library
 assertthat	0.2.1	/usr/local/lib/R/site-library
 backports	1.5.0	/usr/local/lib/R/site-library
 base64enc	0.1-3	/usr/local/lib/R/site-library
+beeswarm	0.4.0	/usr/local/lib/R/site-library
 bit	4.5.0	/usr/local/lib/R/site-library
 bit64	4.5.2	/usr/local/lib/R/site-library
 blob	1.2.4	/usr/local/lib/R/site-library
 broom	1.0.7	/usr/local/lib/R/site-library
 bslib	0.8.0	/usr/local/lib/R/site-library
 cachem	1.1.0	/usr/local/lib/R/site-library
+Cairo	1.6-2	/usr/local/lib/R/site-library
 callr	3.7.6	/usr/local/lib/R/site-library
 cellranger	1.1.0	/usr/local/lib/R/site-library
 cli	3.6.3	/usr/local/lib/R/site-library
@@ -35,7 +37,9 @@ forcats	1.0.0	/usr/local/lib/R/site-library
 fs	1.6.4	/usr/local/lib/R/site-library
 gargle	1.5.2	/usr/local/lib/R/site-library
 generics	0.1.3	/usr/local/lib/R/site-library
+ggbeeswarm	0.7.2	/usr/local/lib/R/site-library
 ggplot2	3.5.1	/usr/local/lib/R/site-library
+ggrastr	1.0.2	/usr/local/lib/R/site-library
 ggvenn	0.1.10	/usr/local/lib/R/site-library
 glue	1.8.0	/usr/local/lib/R/site-library
 googledrive	2.1.1	/usr/local/lib/R/site-library
@@ -64,6 +68,7 @@ openssl	2.2.2	/usr/local/lib/R/site-library
 paletteer	1.6.0	/usr/local/lib/R/site-library
 pillar	1.9.0	/usr/local/lib/R/site-library
 pkgconfig	2.0.3	/usr/local/lib/R/site-library
+png	0.1-8	/usr/local/lib/R/site-library
 prettyunits	1.2.0	/usr/local/lib/R/site-library
 prismatic	1.1.2	/usr/local/lib/R/site-library
 processx	3.8.4	/usr/local/lib/R/site-library
@@ -101,6 +106,7 @@ tzdb	0.4.0	/usr/local/lib/R/site-library
 utf8	1.2.4	/usr/local/lib/R/site-library
 uuid	1.2-1	/usr/local/lib/R/site-library
 vctrs	0.6.5	/usr/local/lib/R/site-library
+vipor	0.4.7	/usr/local/lib/R/site-library
 viridisLite	0.4.2	/usr/local/lib/R/site-library
 vroom	1.6.5	/usr/local/lib/R/site-library
 withr	3.0.2	/usr/local/lib/R/site-library
