@@ -37,9 +37,10 @@ DATASETS="TCGA CPTAC"
 # Path to the Singularity sandbox on Dardel
 SANDBOX="/cfs/klemming/projects/snic/naiss2024-6-235/programs/surfr_pipeline.sif"
 
-# Every pipeline command runs through this wrapper so it executes inside the
-# container. -B /cfs/klemming is required on Dardel
-SING_EXEC="SINGULARITY_TMPDIR=/tmp singularity exec -B /cfs/klemming ${SANDBOX}"
+# --no-mount bind-paths: skip Dardel's site-configured /etc bind mounts. With
+# them, Singularity's underlay mode leaves the container's /etc empty for this
+# image (R then cannot load libblas). Data paths are bound explicitly with -B.
+SING_EXEC="SINGULARITY_TMPDIR=/tmp singularity exec --no-mount bind-paths -B /cfs/klemming ${SANDBOX}"
 
 # --- Tool paths (INSIDE the container — do not change unless the image changes)
 MIRTRACE_PATH="/opt/mirtrace/mirtrace"             # miRTrace executable
