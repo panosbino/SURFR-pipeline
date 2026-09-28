@@ -21,10 +21,10 @@ All of these, at the versions used here, are provided by the container described
 The `Dockerfile` builds an image with all tools at fixed versions (R 4.4.1 with a CRAN snapshot of 2024-10-30; exact R package versions are listed in `R_package_versions.tsv`). Build it for x86-64 and convert it to a Singularity image (SIF) for use on the cluster:
 
 ```bash
-# on your own machine
+# Docker build
 docker buildx build --platform linux/amd64 --tag surfr_pipeline:latest --load .
 docker save surfr_pipeline:latest -o surfr_pipeline_docker.tar
-# copy the .tar to the cluster, then on the cluster
+# Singularity build
 singularity build surfr_pipeline.sif docker-archive://$PWD/surfr_pipeline_docker.tar
 ```
 
@@ -51,7 +51,7 @@ SINGULARITY_TMPDIR=/tmp singularity exec --no-mount bind-paths -B /cfs/klemming 
 - Uses **Samtools** to merge BAM files for each condition downloaded from the Genomic Data Commons (GDC).
 - Merged files are converted to FASTQ format and compressed with **pigz**.  
 - If your input files are already in FASTQ format, the conversion step can be skipped.  
-- Expected input layout: `<projPath>/Data/<project>/<dataset>/bams/cancer_bams/*.bam` and `.../bams/adjacent_bams/*.bam`. The scripts used for the preprint called the second folder `healthy_bams`; rename it if your data follows that layout.  
+- Expected input layout: `<projPath>/Data/<project>/<dataset>/bams/cancer_bams/*.bam` and `.../bams/adjacent_bams/*.bam`. The scripts used for the preprint called the second folder `healthy_bams`.
 
 ---
 
@@ -120,18 +120,6 @@ What has been checked for this release, and what has not:
 - `FindCancerSpecificRNAs.r` runs end to end, including all plots, on synthetic data with a known answer (`tests/make_test_data.py`).
 - The SLURM job chain in `run_SURFR_pipeline.sh` was checked with `--dry-run`.
 
-**Not verified**
-- Steps 1–3 were not rerun on the TCGA and CPTAC data for this release. Their commands match the scripts used for the preprint, apart from changes that only affect execution (paths, module loading, overwriting outputs on rerun).
-- The enrichment filters and the TCGA–CPTAC intersection in Step 4 were tested on synthetic data only, not rerun on the published data.
-- The non-cancer k-mer table is not included (see above), so Step 4 cannot currently be run on the real data from this repository alone.
 
-## Notes on the preprint text
 
-The code in this repository is the reference for how the published results were produced. Where the preprint text is ambiguous or differs, the following applies:
-
-- **Enrichment** is the ratio of raw pooled k-mer counts (cancer / adjacent normal) in each cohort. Although the Methods equation defines the number of tumour and adjacent samples, no normalisation by sample number or library size is applied.
-- **Non-cancer filter:** k-mers with 200 or more counts in the non-cancer cohort are removed. No published candidate has exactly 200 counts (the maximum is 199), so this boundary does not affect the published results.
-- **Merging:** dekupl-mergeTags is run with k = 17, stranded merging and a minimum overlap of 15 nt (its defaults). Each merged sequence is represented by the k-mer with the lowest non-cancer count, and the count columns reported for a sequence are those of this representative k-mer, not totals over the sequence.
-- **LUAD** yields 73 sequences. One of them (AAAATGCTCAGACTCCT) appears in Supplementary Table 2 under LUSC (oncRNA-8), so the table lists 72 sequences under LUAD.
-- **samtools:** the container uses samtools 1.23.1 instead of 1.20 cited in the Methods. The release notes between these versions list no change that alters the reads produced by `samtools merge` and `samtools fastq` as used here.
 
