@@ -220,7 +220,8 @@ echo "Convert to a Singularity image (SIF) for Dardel:"\n\
 echo "  docker save surfr_pipeline:latest -o surfr_pipeline_docker.tar   (on your machine)"\n\
 echo "  copy the .tar to the cluster, then on the cluster:"\n\
 echo "  singularity build surfr_pipeline.sif docker-archive://\$PWD/surfr_pipeline_docker.tar"\n\
-echo "  run with: SINGULARITY_TMPDIR=/tmp singularity exec -B /cfs/klemming surfr_pipeline.sif ..."\n\
+echo "  run with: SINGULARITY_TMPDIR=/tmp singularity exec --no-mount bind-paths -B /cfs/klemming surfr_pipeline.sif ..."\n\
+echo "  (--no-mount bind-paths is required on Dardel; see README, Container)"\n\
 ' > /entrypoint.sh && chmod +x /entrypoint.sh
 
 CMD ["/bin/bash", "/entrypoint.sh"]
